@@ -65,6 +65,7 @@ buildConfigFromPaths fp = convertErrors <$> runErrorT tryParsing
                  <*> get cp "DEFAULT" "subnet"
                  <*> get cp "DEFAULT" "sg_cidr"
                  <*> get cp "DEFAULT" "sg_port"
+                 <*> get cp "DEFAULT" "use_public_ip"
                  <*> get cp "DEFAULT" "instance_type"
                  <*> get cp "DEFAULT" "iam_role"
 

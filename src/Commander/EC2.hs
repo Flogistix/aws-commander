@@ -5,7 +5,8 @@
 {-# LANGUAGE InstanceSigs        #-}
 module Commander.EC2 where
 
-import Commander.Conf
+import Data.List
+import Data.Monoid
 
 import Control.Concurrent
 import Control.Exception
@@ -20,8 +21,9 @@ import Control.Monad.Trans.Error
 import Control.Monad.Trans.Resource
 
 import Data.Text (Text)
-import qualified Data.Text    as Text
-import qualified Data.Text.IO as Text
+import qualified Data.Text.Encoding  as Text
+import qualified Data.Text           as Text
+import qualified Data.Text.IO        as Text
 
 import System.IO
 
@@ -29,13 +31,51 @@ import Network.AWS
 import Network.AWS.EC2
 
 import Katip
+
+import Commander.Conf
 import Commander.Types
 import Commander.EC2.SecurityGroup
 
+import qualified Data.ByteString.Base64 as B64
+
 import Debug.Trace
 
-installPlebScript :: Text
-installPlebScript = "echo Hello World"
+userDataScript :: Int -> Text
+userDataScript port = Text.decodeUtf8 . B64.encode . Text.encodeUtf8 $ script
+  where 
+    script = "#!/bin/bash \
+             \ apt-get install -y netcat-traditional && \
+             \ echo \"Starting netcat...\" && \
+             \ nc.traditional -l -p " <> (Text.pack $ show port) <> " -c \"/bin/date\" &"
+
+
+
+assignPublicAddress :: (MonadAWS m) => Instance -> m ()
+assignPublicAddress i = do
+  response <- send $ allocateAddress & aaDomain ?~ DTVPC 
+  let publicIp     = response ^. aarsPublicIP
+      allocationId = response ^. aarsAllocationId
+      instanceId   = i ^. insInstanceId
+
+  case allocationId of
+    Nothing    -> return ()
+    Just    _  -> do
+      void . send $ associateAddress & aasInstanceId   ?~ instanceId
+                                     & aasAllocationId .~ allocationId
+
+
+
+assignPublicIPAddresses :: (MonadAWS m, MonadState AppState m, MonadReader AppConfig m, KatipContext m) => m ()
+assignPublicIPAddresses = do  
+  isUsingPublicIps <- view $ configFile . awsUsePublicIP
+  case isUsingPublicIps of
+    False -> return ()
+    True  -> do
+      instances <- use ec2Instances
+      $(logTM) InfoS "Attempting to associate instances to public IPs"
+      void $ mapM assignPublicAddress instances
+
+
 
 -- | Checks to see if the instances stored in local state are running
 allInstancesAreReady :: forall m . (MonadAWS m, MonadState AppState m) => m Bool
@@ -50,15 +90,23 @@ allInstancesAreReady = areInstancesRunning . getStates <$> (instanceStatuses =<<
     instanceStatuses :: [Text] -> m DescribeInstanceStatusResponse
     instanceStatuses xs = send $ describeInstanceStatus & disInstanceIds .~ xs
 
+
+
 -- | Gets the InstanceIds from the instances held in AppState
 getInstanceIdsInState :: (MonadState AppState m) => m [Text]
 getInstanceIdsInState = fmap (view insInstanceId) <$> use ec2Instances
     
+
+
 getInstanceState :: Instance -> InstanceStateName
 getInstanceState i = i ^. (insState . isName)
 
+
+
 isInstanceStateEq :: InstanceStateName -> Instance -> Bool
 isInstanceStateEq s = (s ==) . getInstanceState
+
+
 
 updateInstances :: (MonadAWS m, MonadState AppState m, KatipContext m) => m ()
 updateInstances = do
@@ -66,16 +114,19 @@ updateInstances = do
   response    <- send $ describeInstances & diiInstanceIds .~ instanceIds
   ec2Instances .= response ^. dirsReservations . traverse . rInstances
 
+
+
 waitUntilInstancesAreRunning :: (MonadAWS m, MonadReader AppConfig m, MonadState AppState m, KatipContext m) => m ()
 waitUntilInstancesAreRunning = do
   allRunning <- allInstancesAreReady
   secs <- view $ configFile . waitToRunningSec
-  liftIO $ putStrLn . show $ allRunning
   if allRunning then return ()
   else do
     $(logTM) InfoS "Instances are not ready... waiting..."
     liftIO $ threadDelay (secs * 1000000)
     waitUntilInstancesAreRunning
+
+
 
 -- | Create instances to run jobs on. Install Pleb.
 createInstances :: (MonadAWS m, MonadIO m, MonadReader AppConfig m, MonadState AppState m, KatipContext m) => m ()
@@ -86,22 +137,28 @@ createInstances = do
   snetId  <- view $ configFile . subnetIdentifier
   role    <- view $ configFile . iamRole
   keyName <- view $ configFile . keyPairName
+  port    <- view $ configFile . awsSGPort
   num     <- view $ configFile . numberOfInstances
 
   let iamr    = iamInstanceProfileSpecification & iapsName ?~ role
-  let request = runInstances ami num num
+      request = runInstances ami num num
 
+  liftIO . Text.putStrLn $ userDataScript port
+
+  $(logTM) InfoS "Attempting to spin up instances"
   reservation <- send $ request & rSecurityGroupIds  <>~ [sgId]
                                 & rKeyName            ?~ keyName
                                 & rSubnetId           ?~ snetId
                                 & rIAMInstanceProfile ?~ iamr
-                                & rUserData           ?~ installPlebScript
+                                & rUserData           ?~ userDataScript port
 
+  $(logTM) InfoS "Instances are starting up"
   ec2Instances .= reservation ^. rInstances 
   waitUntilInstancesAreRunning
   updateInstances
-
   -- Need to give each instance a name tag
+
+
 
 terminateInstancesInState :: (MonadAWS m, MonadIO m, MonadState AppState m, KatipContext m) => m ()
 terminateInstancesInState = do

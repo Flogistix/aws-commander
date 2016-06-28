@@ -37,6 +37,7 @@ data ConfigFile = ConfigFile { _awsRegion           :: Text
                              , _subnetIdentifier    :: Text
                              , _awsSGCidr           :: Text
                              , _awsSGPort           :: Int
+                             , _awsUsePublicIP      :: Bool
                              , _instanceType        :: Text
                              , _iamRole             :: Text
                              } deriving (Show, Read)

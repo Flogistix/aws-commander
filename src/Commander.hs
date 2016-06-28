@@ -48,6 +48,7 @@ getRegionOrExit c =
     Right region -> return region
     Left _       -> exitFailure
 
+
 someFunc :: IO ()
 someFunc = void $ do
   -- Get default config environment unless specified otherwise by command line args
@@ -68,13 +69,14 @@ someFunc = void $ do
   runAWSWithEnv awsEnv . runCommander config state $ do
     $(logTM) InfoS "Starting"
     createInstances 
+    assignPublicIPAddresses
 
     $(logTM) InfoS "Instances ready."
 
-    $(logTM) InfoS "Terminating Instances"
-    terminateInstancesInState
+    -- $(logTM) InfoS "Terminating Instances"
+    -- terminateInstancesInState
+    -- $(logTM) InfoS "Instances Terminated"
 
-    $(logTM) InfoS "Instances Terminated"
     $(logTM) InfoS "Stopping"
 
 
