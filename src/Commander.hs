@@ -7,14 +7,15 @@ module Commander
 
 import Commander.Conf
 
-import Control.Exception
+import Control.Exception hiding (catch)
 import Control.Lens
 import Control.Monad
+import Control.Monad.Catch
+import Control.Monad.Except
 import Control.Monad.IO.Class
 import Control.Monad.State
 import Control.Monad.Reader
 
-import Control.Monad.Trans.Error
 import Control.Monad.Trans.Resource
 
 import Data.UUID    (toText)
@@ -61,28 +62,40 @@ someFunc = void $ do
   uuid     <- toText <$> nextRandom
 
   let state :: AppState
-      state = (AppState mempty uuid mempty le namespace) 
+      state = (AppState mempty uuid mempty le namespace mempty) 
 
       config :: AppConfig
       config = (AppConfig confFile)
 
-  runAWSWithEnv awsEnv . runCommander config state $ do
-    $(logTM) InfoS "Starting"
-    createInstances 
-    assignPublicIPAddresses
+  runAWSWithEnv awsEnv . runCommander config state $ commanderRoutine
 
-    $(logTM) InfoS "Instances ready."
 
-    -- $(logTM) InfoS "Terminating Instances"
-    -- terminateInstancesInState
-    -- $(logTM) InfoS "Instances Terminated"
+commanderRoutine :: ( MonadAWS m, MonadIO m, MonadReader AppConfig m, MonadState AppState m
+                    , MonadError CommanderError m, KatipContext m ) => m ()
+commanderRoutine = do
+  $(logTM) InfoS "Starting"
+  createInstances 
 
-    $(logTM) InfoS "Stopping"
+  catchError
+    assignPublicIPAddresses 
+    reportCommanderErrors
+
+  $(logTM) InfoS "Instances ready."
+
+  -- $(logTM) InfoS "Terminating Instances"
+  -- terminateInstancesInState
+  -- $(logTM) InfoS "Instances Terminated"
+
+  $(logTM) InfoS "Stopping"
+
 
 
   
 runAWSWithEnv :: Env -> AWS a -> IO a
 runAWSWithEnv env = runResourceT . runAWS env
 
-reportErrors :: SomeException -> IO ()
-reportErrors = putStrLn . displayException
+reportExceptions :: SomeException -> IO ()
+reportExceptions = putStrLn . displayException
+
+reportCommanderErrors :: (MonadIO m) => CommanderError -> m ()
+reportCommanderErrors = liftIO . putStrLn . show

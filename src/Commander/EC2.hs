@@ -13,11 +13,11 @@ import Control.Exception
 import Control.Lens
 import Control.Lens.Prism
 import Control.Monad
+import Control.Monad.Except
 import Control.Monad.IO.Class
 import Control.Monad.Reader
 import Control.Monad.State
 
-import Control.Monad.Trans.Error
 import Control.Monad.Trans.Resource
 
 import Data.Text (Text)
@@ -43,14 +43,14 @@ import Debug.Trace
 userDataScript :: Int -> Text
 userDataScript port = Text.decodeUtf8 . B64.encode . Text.encodeUtf8 $ script
   where 
-    script = "#!/bin/bash \
-             \ apt-get install -y netcat-traditional && \
-             \ echo \"Starting netcat...\" && \
+    script = "#!/bin/bash \n \
+             \ apt-get install -y netcat-traditional &&\ \n \
+             \ echo \"Starting netcat...\" &&\ \n \
              \ nc.traditional -l -p " <> (Text.pack $ show port) <> " -c \"/bin/date\" &"
 
 
-
-assignPublicAddress :: (MonadAWS m) => Instance -> m ()
+-- I should save elastic IPs in state to remove later
+assignPublicAddress :: (MonadAWS m, MonadError CommanderError m, MonadState AppState m) => Instance -> m ()
 assignPublicAddress i = do
   response <- send $ allocateAddress & aaDomain ?~ DTVPC 
   let publicIp     = response ^. aarsPublicIP
@@ -58,14 +58,16 @@ assignPublicAddress i = do
       instanceId   = i ^. insInstanceId
 
   case allocationId of
-    Nothing    -> return ()
-    Just    _  -> do
+    Nothing      -> throwError CanNotGetPublicIPError
+    Just allocId -> do
+      -- Remember allocationId to be released later
+      elasticIPs <>= [allocId]
       void . send $ associateAddress & aasInstanceId   ?~ instanceId
                                      & aasAllocationId .~ allocationId
 
 
 
-assignPublicIPAddresses :: (MonadAWS m, MonadState AppState m, MonadReader AppConfig m, KatipContext m) => m ()
+assignPublicIPAddresses :: (MonadAWS m, MonadError CommanderError m, MonadState AppState m, MonadReader AppConfig m, KatipContext m) => m ()
 assignPublicIPAddresses = do  
   isUsingPublicIps <- view $ configFile . awsUsePublicIP
   case isUsingPublicIps of
@@ -143,8 +145,6 @@ createInstances = do
   let iamr    = iamInstanceProfileSpecification & iapsName ?~ role
       request = runInstances ami num num
 
-  liftIO . Text.putStrLn $ userDataScript port
-
   $(logTM) InfoS "Attempting to spin up instances"
   reservation <- send $ request & rSecurityGroupIds  <>~ [sgId]
                                 & rKeyName            ?~ keyName
@@ -164,6 +164,8 @@ terminateInstancesInState :: (MonadAWS m, MonadIO m, MonadState AppState m, Kati
 terminateInstancesInState = do
   instanceIds <- getInstanceIdsInState
   send $ terminateInstances & tiInstanceIds .~ instanceIds
+
+  -- Need to remember to clear up any elastic IPs that have been assigned.
 
   -- clear instance state
   ec2Instances .= mempty

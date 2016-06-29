@@ -22,16 +22,22 @@ import Commander.Types
 commanderSGName = "CommanderSG"
 commanderSGDesc = "Commander SG"
 
+
+
 getVPCIdFromSubnet :: (MonadAWS m, MonadReader AppConfig m, KatipContext m) => Text -> m (Maybe Text)
 getVPCIdFromSubnet snId = do
   $(logTM) InfoS "Getting VPC assigned to subnet"
   response <- send $ describeSubnets & dsSubnetIds .~ [snId]
   return . listToMaybe $ response ^.. dsrsSubnets . traverse . subVPCId
 
+
+
 checkToSeeIfSecurityGroupIdExists :: (MonadAWS m, KatipContext m) => Text -> m Bool
 checkToSeeIfSecurityGroupIdExists groupId = do
   response <- send $ describeSecurityGroups & dsgsGroupIds .~ [groupId]
   return $ (length $ response ^. dsgrsSecurityGroups) > 0
+
+
 
 checkToSeeIfSecurityGroupNameExists :: (MonadAWS m, KatipContext m) => Text -> m (Maybe SecurityGroup)
 checkToSeeIfSecurityGroupNameExists name = do
@@ -43,6 +49,8 @@ checkToSeeIfSecurityGroupNameExists name = do
   where
     maybeGetMatching = listToMaybe . filter (\sg -> name == sg ^. sgGroupName)
 
+
+
 waitForSG :: (MonadAWS m, KatipContext m) => Text -> m ()
 waitForSG sgId = do
   sgExists <- checkToSeeIfSecurityGroupIdExists sgId
@@ -52,6 +60,8 @@ waitForSG sgId = do
       $(logTM) InfoS "SG creation in progress... waiting 3 seconds..."
       liftIO $ threadDelay (3 * 1000000)
       waitForSG sgId
+
+
 
 createCommanderSecurityGroup :: (MonadAWS m, MonadReader AppConfig m, KatipContext m) => m Text
 createCommanderSecurityGroup = do
@@ -72,6 +82,8 @@ createCommanderSecurityGroup = do
 
   return groupId
 
+
+
 attachIPPermissions :: (MonadAWS m, KatipContext m, MonadReader AppConfig m) => Text -> m ()
 attachIPPermissions groupId = do
   cidr     <- view $ configFile . awsSGCidr
@@ -83,8 +95,11 @@ attachIPPermissions groupId = do
                                        & asgiToPort        ?~ port
                                        & asgiCIdRIP        ?~ cidr
                                        & asgiIPProtocol    ?~ "tcp"
+
   $(logTM) InfoS "IP permissions assigned"
   return ()
+
+
 
 getCommanderSecurityGroupId :: (MonadAWS m, MonadReader AppConfig m, KatipContext m) => m Text
 getCommanderSecurityGroupId = createGroupIfNotExists =<< checkToSeeIfSecurityGroupNameExists commanderSGName 

@@ -2,14 +2,17 @@
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE TemplateHaskell            #-}
 {-# LANGUAGE RankNTypes                 #-}
+{-# LANGUAGE FlexibleInstances          #-}
 
 module Commander.Types where
 
 import Data.Typeable
 
+import Control.Monad.Except
 import Control.Monad.Reader
 import Control.Monad.State
 import Control.Monad.Catch
+import Control.Monad.Signatures
 
 import Control.Monad.Trans.AWS
 import Control.Monad.Trans.Resource
@@ -70,8 +73,9 @@ makeLenses ''AppState
 
 
 newtype CommanderT m a = CommanderT { unStack :: ReaderT AppConfig (StateT AppState m) a  }
-  deriving ( MonadReader AppConfig, MonadState AppState, Functor 
-           , Applicative, Monad, MonadIO, MonadCatch, MonadThrow, MonadAWS )
+  deriving ( Functor, Applicative, Monad, MonadIO
+           , MonadReader AppConfig, MonadState AppState
+           , MonadCatch, MonadThrow, MonadAWS )
 
 
 instance MonadIO m => Katip (CommanderT m) where
@@ -83,8 +87,6 @@ instance MonadIO m => KatipContext (CommanderT m) where
   getKatipNamespace = use katipNamespace
 
 
-  
-
-
 runCommander :: MonadIO m => AppConfig -> AppState -> CommanderT m a -> m a
 runCommander c s = (flip evalStateT) s . (flip runReaderT) c . unStack
+
