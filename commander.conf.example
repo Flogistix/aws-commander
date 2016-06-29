@@ -5,14 +5,16 @@ number_of_instances: 2
 
 key_pair_name: "commander"
 
-ami: "ami-9abea4fb"
+ami: "ami-9dbea4fc"
 
 #Don't have a reason to use the vpc id yet...
 #vpc: "vpc-8ec3b0eb"
 
 subnet: "subnet-b797f7c0"
 sg_port: 16855
-sg_cidr: "0.0.0.0/24"
+sg_cidr: "0.0.0.0/0"
+
+use_public_ip: true
 
 #instance names must be lowercase 
 instance_type: "t1.micro"
