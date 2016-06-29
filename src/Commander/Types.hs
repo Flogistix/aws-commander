@@ -5,6 +5,8 @@
 
 module Commander.Types where
 
+import Data.Typeable
+
 import Control.Monad.Reader
 import Control.Monad.State
 import Control.Monad.Catch
@@ -33,6 +35,11 @@ data NetworkError = CanNotResolveAddressError
                   | NoIPAddressesAvailableError
   deriving (Show)
 
+data CommanderError = CanNotGetPublicIPError
+  deriving (Show, Typeable)
+instance Exception CommanderError
+
+
 data ConfigFile = ConfigFile { _awsRegion           :: Text
                              , _numberOfInstances   :: Int
                              , _waitToRunningSec    :: Int
@@ -48,7 +55,7 @@ data ConfigFile = ConfigFile { _awsRegion           :: Text
 makeLenses ''ConfigFile
 
 
-data AppConfig = AppConfig { _configFile :: ConfigFile }
+data AppConfig = AppConfig { _configFile :: ConfigFile } deriving (Show)
 makeLenses ''AppConfig
 
 
@@ -57,22 +64,27 @@ data AppState = AppState { _ec2Instances   :: [Instance]
                          , _katipContext   :: LogContexts
                          , _katipLogEnv    :: LogEnv
                          , _katipNamespace :: Namespace
+                         , _elasticIPs     :: [Text]
                          }
 makeLenses ''AppState
 
 
-newtype Commander m a = Commander { unStack :: ReaderT AppConfig (StateT AppState m) a  }
-  deriving ( MonadReader AppConfig, MonadState AppState, Functor
+newtype CommanderT m a = CommanderT { unStack :: ReaderT AppConfig (StateT AppState m) a  }
+  deriving ( MonadReader AppConfig, MonadState AppState, Functor 
            , Applicative, Monad, MonadIO, MonadCatch, MonadThrow, MonadAWS )
 
 
-instance MonadIO m => Katip (Commander m) where
+instance MonadIO m => Katip (CommanderT m) where
   getLogEnv = use katipLogEnv
 
 
-instance MonadIO m => KatipContext (Commander m) where
+instance MonadIO m => KatipContext (CommanderT m) where
   getKatipContext   = use katipContext
   getKatipNamespace = use katipNamespace
 
-runCommander :: MonadIO m => AppConfig -> AppState -> Commander m a -> m a
+
+  
+
+
+runCommander :: MonadIO m => AppConfig -> AppState -> CommanderT m a -> m a
 runCommander c s = (flip evalStateT) s . (flip runReaderT) c . unStack
