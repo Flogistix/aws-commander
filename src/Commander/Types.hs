@@ -29,6 +29,10 @@ data ConfigError = NoConfigurationFilesFoundError
                  | ConfigurationCouldNotParseError Text
   deriving (Show)
 
+data NetworkError = CanNotResolveAddressError
+                  | NoIPAddressesAvailableError
+  deriving (Show)
+
 data ConfigFile = ConfigFile { _awsRegion           :: Text
                              , _numberOfInstances   :: Int
                              , _waitToRunningSec    :: Int

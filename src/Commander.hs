@@ -72,7 +72,7 @@ someFunc = void $ do
     $(logTM) InfoS "Instances ready."
 
     $(logTM) InfoS "Terminating Instances"
-    terminateInstancesInState
+    -- terminateInstancesInState
 
     $(logTM) InfoS "Instances Terminated"
     $(logTM) InfoS "Stopping"
