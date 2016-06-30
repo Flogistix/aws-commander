@@ -3,7 +3,6 @@
 {-# LANGUAGE RankNTypes        #-}
 module Commander.Network where
 
-import Control.Applicative
 import Control.Lens 
 import Control.Monad.Reader
 import Control.Monad.Except
@@ -21,23 +20,21 @@ import Data.ByteString
 import Data.Text (Text)
 import qualified Data.Text as Text
 
+import Commander.EC2 
 import Commander.Types
 
-getIPForInstance :: (MonadReader AppConfig m, MonadIO m, MonadError NetworkError m) => Instance -> m Text
-getIPForInstance inst = do
-  ip <- return $ inst ^. insPublicIPAddress <|> inst ^. insPrivateIPAddress
-  case ip of
-    Nothing -> throwError NoIPAddressesAvailableError
-    Just ip -> return ip
 
 
 streamFromSocket :: (MonadIO m, MonadError NetworkError m, MonadReader AppConfig m) => Instance -> Producer' ByteString m ()
 streamFromSocket inst = do
-  host      <- Text.unpack <$> getIPForInstance inst
-  port      <- view $ configFile . awsSGPort
-  addrInfos <- liftIO $ getAddrInfo Nothing (Just host) (Just . show $ port)
-  sock      <- tryToConnectSocket addrInfos
-  fromSocket sock 4096
+  case getIPForInstance inst of
+    Nothing -> return ();
+    Just ip -> do
+      host      <- return . Text.unpack $ ip
+      port      <- view $ configFile . awsSGPort
+      addrInfos <- liftIO $ getAddrInfo Nothing (Just host) (Just . show $ port)
+      sock      <- tryToConnectSocket addrInfos
+      fromSocket sock 4096
 
   where
     tryToConnectSocket :: (MonadIO m, MonadError NetworkError m) => [AddrInfo] -> m Socket  

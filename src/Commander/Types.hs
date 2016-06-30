@@ -20,7 +20,7 @@ import Control.Monad.Trans.Resource
 import Control.Lens
 import Control.Lens.TH
 
-import Control.Exception
+import Control.Exception (Exception)
 
 import Katip
 
@@ -29,6 +29,8 @@ import Network.AWS.EC2
 
 import Data.Text (Text)
 import qualified Data.Text as Text
+
+type SessionID = Text
 
 data ConfigError = NoConfigurationFilesFoundError
                  | ConfigurationCouldNotParseError Text

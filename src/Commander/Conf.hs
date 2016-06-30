@@ -3,13 +3,13 @@
 {-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE InstanceSigs        #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+
 module Commander.Conf where
 
 import Control.Exception
 import Control.Monad
 import Control.Monad.Error
 import Control.Monad.Except
-
 
 import Data.ConfigFile
 import Data.Foldable (foldlM)
@@ -24,10 +24,6 @@ import System.Directory
 import System.Exit
 import System.IO
 import System.IO.Error
-
-import Debug.Trace
-
-import Katip
 
 import Commander.Types
 

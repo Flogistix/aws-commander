@@ -1,6 +1,10 @@
+{-# LANGUAGE CPP               #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE FlexibleContexts  #-}
 {-# LANGUAGE TemplateHaskell   #-}
+
+#include "macros.h"
+
 module Commander
     ( someFunc
     ) where
@@ -18,6 +22,7 @@ import Control.Monad.Reader
 
 import Control.Monad.Trans.Resource
 
+import Data.Maybe
 import Data.UUID    (toText)
 import Data.UUID.V4 (nextRandom)
 
@@ -71,22 +76,28 @@ someFunc = void $ do
 
 
 commanderRoutine :: ( MonadAWS m, MonadIO m, MonadReader AppConfig m, MonadState AppState m
-                    , MonadError CommanderError m, KatipContext m ) => m ()
+                    , MonadThrow m, KatipContext m ) => m ()
 commanderRoutine = do
-  $(logTM) InfoS "Starting"
+  INFO("Starting")
+
+  -- Spin up instances and create security group if necessary
   createInstances 
 
-  catchError
-    assignPublicIPAddresses 
-    reportCommanderErrors
+  -- Assign public ips if specified in config
+  catch assignPublicIPAddressesIfNecessary
+        reportCommanderErrors
 
-  $(logTM) InfoS "Instances ready."
+  -- Display IP addresses for instances
+  maybeIPs <- fmap getIPForInstance <$> use ec2Instances
+  let ips :: [Text]
+      ips = id =<< maybeToList <$> maybeIPs
+  liftIO $ mapM_ Text.putStrLn ips
 
-  -- $(logTM) InfoS "Terminating Instances"
-  -- terminateInstancesInState
-  -- $(logTM) InfoS "Instances Terminated"
+  INFO("Instances ready.")
 
-  $(logTM) InfoS "Stopping"
+  terminateInstancesInStateAndCleanUpElasticIPs
+
+  INFO("Stopping")
 
 
 
