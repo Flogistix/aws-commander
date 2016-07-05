@@ -40,6 +40,7 @@ import Katip
 import Commander.Conf
 import Commander.Types
 import Commander.EC2.SecurityGroup
+import Commander.Utils
 
 import qualified Data.ByteString.Base64 as B64
 
@@ -50,11 +51,6 @@ userDataScript :: Int -> Text
 userDataScript port = Text.decodeUtf8 . B64.encode . Text.encodeUtf8 $ script
   where 
     script = "#!/bin/bash \n apt-get install -y netcat-traditional && echo \"Starting netcat...\" && nc.traditional -l -p " <> (Text.pack $ show port) <> " -c \"/bin/date\" &"
-
-
-
-getIPForInstance :: Instance -> Maybe Text
-getIPForInstance inst = inst ^. insPublicIPAddress <|> inst ^. insPrivateIPAddress
 
 
 

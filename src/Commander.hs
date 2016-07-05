@@ -40,6 +40,8 @@ import Network.AWS.EC2
 import Katip
 import Commander.EC2
 import Commander.Types
+import Commander.Network
+import Commander.Utils
 
 developmentEnv = Environment "Development"
 productionEnv  = Environment "Production"
@@ -94,6 +96,11 @@ commanderRoutine = do
   liftIO $ mapM_ Text.putStrLn ips
 
   INFO("Instances ready.")
+
+  liftIO $ Text.putStrLn "Press enter when ready to stream responses"
+  liftIO $ Text.getLine
+  streamFromInstances
+   
 
   terminateInstancesInStateAndCleanUpElasticIPs
 

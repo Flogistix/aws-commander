@@ -1,48 +1,63 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE FlexibleContexts  #-}
-{-# LANGUAGE RankNTypes        #-}
+{-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE FlexibleContexts    #-}
+{-# LANGUAGE RankNTypes          #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE InstanceSigs        #-}
 module Commander.Network where
 
-import Control.Lens 
-import Control.Monad.Reader
-import Control.Monad.Except
+import Control.Concurrent.Async
 
-import Network.Socket
+import Data.ByteString
+import Data.Maybe
+import Data.Monoid
+
+import Control.Lens 
+import Control.Monad.Except
+import Control.Monad.Reader
+import Control.Monad.State
 
 import Pipes
-import Pipes.Network.TCP hiding (connect)
+import Pipes.Safe
+import Pipes.Network.TCP.Safe
+import qualified Pipes.ByteString as PB
 
 import Network.AWS
 import Network.AWS.EC2
 
-import Data.ByteString
-
 import Data.Text (Text)
-import qualified Data.Text as Text
+import qualified Data.Text    as Text
+import qualified Data.Text.IO as Text
 
-import Commander.EC2 
 import Commander.Types
+import Commander.Utils
 
+import System.IO
+import GHC.IO.Exception
 
+type Host' = String
+type Port' = String
 
-streamFromSocket :: (MonadIO m, MonadError NetworkError m, MonadReader AppConfig m) => Instance -> Producer' ByteString m ()
-streamFromSocket inst = do
-  case getIPForInstance inst of
-    Nothing -> return ();
-    Just ip -> do
-      host      <- return . Text.unpack $ ip
-      port      <- view $ configFile . awsSGPort
-      addrInfos <- liftIO $ getAddrInfo Nothing (Just host) (Just . show $ port)
-      sock      <- tryToConnectSocket addrInfos
-      fromSocket sock 4096
+streamFromSocket :: Port' -> Host' -> IO ()
+streamFromSocket port host = do
+  h <- openFile (host <> ".log") WriteMode
+  runSafeT . runEffect $ fromConnect 4096 host port >-> PB.toHandle h
 
-  where
-    tryToConnectSocket :: (MonadIO m, MonadError NetworkError m) => [AddrInfo] -> m Socket  
-    tryToConnectSocket []     = throwError CanNotResolveAddressError
-    tryToConnectSocket (x:xs) = do
-      s <- liftIO $ socket (addrFamily x) Stream defaultProtocol
-      liftIO $ connect s (addrAddress x)
-      return s
+streamFromInstancesToFiles :: [Host'] -> Port' -> IO ()
+streamFromInstancesToFiles hosts port = void $ mapConcurrently (streamFromSocket port) hosts
 
-streamFromInstancesToFiles :: (MonadIO m) => m ()
-streamFromInstancesToFiles = undefined
+streamFromInstances :: (MonadState AppState m, MonadReader AppConfig m, MonadIO m) => m ()
+streamFromInstances = do
+  instances <- use ec2Instances
+  port'     <- view $ configFile . awsSGPort
+
+  let ips :: [Host']
+      ips = Text.unpack <$> (catMaybes $ getIPForInstance <$> instances)
+
+      port :: Port'
+      port = show port'
+
+  liftIO $ Text.putStrLn "Got here"
+  liftIO $ mapM Prelude.putStrLn ips
+  liftIO $ Prelude.putStrLn port
+
+  liftIO $ streamFromInstancesToFiles ips port
