@@ -45,6 +45,7 @@ library
                      , pipes-network     >= 0.6.4
                      , network           >= 2.6.2.1
                      , async             >= 2.1.0
+                     , retry             >= 0.7.4
   default-language:    Haskell2010
 
 executable aws-commander

@@ -6,6 +6,7 @@
 module Commander.Network where
 
 import Control.Concurrent.Async
+import Control.Retry
 
 import Data.ByteString
 import Data.Maybe
@@ -60,4 +61,6 @@ streamFromInstances = do
   liftIO $ mapM Prelude.putStrLn ips
   liftIO $ Prelude.putStrLn port
 
-  liftIO $ streamFromInstancesToFiles ips port
+  liftIO $ recoverAll (exponentialBackoff (10 * 1000000)) $ \status -> do
+    Prelude.putStrLn . show $ status
+    streamFromInstancesToFiles ips port

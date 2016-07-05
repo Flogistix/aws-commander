@@ -50,7 +50,7 @@ import Debug.Trace
 userDataScript :: Int -> Text
 userDataScript port = Text.decodeUtf8 . B64.encode . Text.encodeUtf8 $ script
   where 
-    script = "#!/bin/bash \n apt-get install -y netcat-traditional && echo \"Starting netcat...\" && nc.traditional -l -p " <> (Text.pack $ show port) <> " -c \"/bin/date\" &"
+    script = "#!/bin/bash \n apt-get install -y netcat-traditional && echo \"Starting netcat...\" && nc.traditional -l -p " <> (Text.pack $ show port) <> " -c \"while(true); do /bin/date; done;\" &"
 
 
 -- Probably need to do this a different way since I keep exhausting elastic IPs
@@ -194,14 +194,18 @@ createInstances = do
   keyName <- view $ configFile . keyPairName
   port    <- view $ configFile . awsSGPort
   num     <- view $ configFile . numberOfInstances
+  public  <- view $ configFile . awsUsePublicIP
 
   let iamr    = iamInstanceProfileSpecification & iapsName ?~ role
       request = runInstances ami num num
+      spec    = instanceNetworkInterfaceSpecification & inisAssociatePublicIPAddress ?~ public
+                                                      & inisSubnetId                 ?~ snetId
+                                                      & inisGroups                  <>~ [ sgId ]
+                                                      & inisDeviceIndex              ?~ 0
 
   INFO("Attempting to spin up instances")
-  reservation <- send $ request & rSecurityGroupIds  <>~ [sgId]
+  reservation <- send $ request & rNetworkInterfaces <>~ spec:[]
                                 & rKeyName            ?~ keyName
-                                & rSubnetId           ?~ snetId
                                 & rIAMInstanceProfile ?~ iamr
                                 & rUserData           ?~ userDataScript port
 

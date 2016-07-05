@@ -84,18 +84,8 @@ commanderRoutine = do
 
   -- Spin up instances and create security group if necessary
   createInstances 
-
-  -- Assign public ips if specified in config
-  catch assignPublicIPAddressesIfNecessary
-        reportCommanderErrors
-
-  -- Display IP addresses for instances
-  maybeIPs <- fmap getIPForInstance <$> use ec2Instances
-  let ips :: [Text]
-      ips = id =<< maybeToList <$> maybeIPs
-  liftIO $ mapM_ Text.putStrLn ips
-
   INFO("Instances ready.")
+
 
   liftIO $ Text.putStrLn "Press enter when ready to stream responses"
   liftIO $ Text.getLine
