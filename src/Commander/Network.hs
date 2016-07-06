@@ -1,8 +1,13 @@
+{-# LANGUAGE CPP                 #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE InstanceSigs        #-}
+{-# LANGUAGE TemplateHaskell     #-}
+
+#include "../macros.h"
+
 module Commander.Network where
 
 import Control.Concurrent.Async
@@ -32,6 +37,8 @@ import qualified Data.Text.IO as Text
 import Commander.Types
 import Commander.Utils
 
+import Katip
+
 import System.IO
 import GHC.IO.Exception
 
@@ -46,7 +53,7 @@ streamFromSocket port host = do
 streamFromInstancesToFiles :: [Host'] -> Port' -> IO ()
 streamFromInstancesToFiles hosts port = void $ mapConcurrently (streamFromSocket port) hosts
 
-streamFromInstances :: (MonadState AppState m, MonadReader AppConfig m, MonadIO m) => m ()
+streamFromInstances :: (MonadState AppState m, MonadReader AppConfig m, MonadIO m, KatipContext m) => m ()
 streamFromInstances = do
   instances <- use ec2Instances
   port'     <- view $ configFile . awsSGPort
@@ -57,10 +64,11 @@ streamFromInstances = do
       port :: Port'
       port = show port'
 
-  liftIO $ Text.putStrLn "Got here"
-  liftIO $ mapM Prelude.putStrLn ips
-  liftIO $ Prelude.putStrLn port
+      -- I could probably set this up with a config option
+      -- retryStrategy = exponentialBackoff (10 * 1000000) <> limitRetries 5
+      retryStrategy = constantDelay (10 * 1000000) <> limitRetries 5
 
-  liftIO $ recoverAll (exponentialBackoff (10 * 1000000)) $ \status -> do
-    Prelude.putStrLn . show $ status
+  INFO("Attempting to stream responses")
+  liftIO $ recoverAll retryStrategy $ \status -> do
+    System.IO.hPutStrLn stderr $ "Attempt number " <> (show (status ^. rsIterNumberL))
     streamFromInstancesToFiles ips port

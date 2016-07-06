@@ -77,7 +77,7 @@ makeLenses ''AppState
 newtype CommanderT m a = CommanderT { unStack :: ReaderT AppConfig (StateT AppState m) a  }
   deriving ( Functor, Applicative, Monad, MonadIO
            , MonadReader AppConfig, MonadState AppState
-           , MonadCatch, MonadThrow, MonadAWS )
+           , MonadCatch, MonadThrow, MonadAWS, MonadMask )
 
 
 instance MonadIO m => Katip (CommanderT m) where

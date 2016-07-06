@@ -18,6 +18,7 @@ import Control.Exception
 import Control.Lens
 import Control.Lens.Prism
 import Control.Monad
+import Control.Monad.Catch
 import Control.Monad.Except
 import Control.Monad.IO.Class
 import Control.Monad.Reader
@@ -216,19 +217,16 @@ createInstances = do
   
   INFO("Assigning Instances Name Tags")
   createTagsOnInstances uuid
-
   updateInstanceState
 
 
 
-terminateInstancesInStateAndCleanUpElasticIPs :: ( MonadAWS m, MonadIO m, MonadState AppState m
-                                                 , MonadReader AppConfig m, KatipContext m) => m ()
+terminateInstancesInStateAndCleanUpElasticIPs :: ( MonadAWS m
+                                                 , MonadIO m
+                                                 , MonadState AppState m
+                                                 , MonadReader AppConfig m
+                                                 , KatipContext m) => m ()
 terminateInstancesInStateAndCleanUpElasticIPs = do
-  -- For debugging purposes
-  liftIO $ Text.putStrLn "Press enter to shutdown machines"
-  liftIO $ getLine
-
-
   INFO("Terminating Instances")
   instanceIds <- getInstanceIdsInState
   send $ terminateInstances & tiInstanceIds .~ instanceIds

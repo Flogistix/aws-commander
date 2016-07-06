@@ -11,7 +11,7 @@ module Commander
 
 import Commander.Conf
 
-import Control.Exception hiding (catch)
+import Control.Exception hiding (catch, bracket)
 import Control.Lens
 import Control.Monad
 import Control.Monad.Catch
@@ -78,21 +78,14 @@ someFunc = void $ do
 
 
 commanderRoutine :: ( MonadAWS m, MonadIO m, MonadReader AppConfig m, MonadState AppState m
-                    , MonadThrow m, KatipContext m ) => m ()
+                    , MonadThrow m, MonadMask m, KatipContext m ) => m ()
 commanderRoutine = do
   INFO("Starting")
 
-  -- Spin up instances and create security group if necessary
-  createInstances 
-  INFO("Instances ready.")
-
-
-  liftIO $ Text.putStrLn "Press enter when ready to stream responses"
-  liftIO $ Text.getLine
-  streamFromInstances
-   
-
-  terminateInstancesInStateAndCleanUpElasticIPs
+  bracket
+    createInstances 
+    (const terminateInstancesInStateAndCleanUpElasticIPs)
+    (const streamFromInstances)
 
   INFO("Stopping")
 
