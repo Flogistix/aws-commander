@@ -47,8 +47,12 @@ type Port' = String
 
 streamFromSocket :: Port' -> Host' -> IO ()
 streamFromSocket port host = do
+  let retryStrategy = exponentialBackoff (10 * 1000000) <> limitRetries 5
+
   h <- openFile (host <> ".log") WriteMode
-  runSafeT . runEffect $ fromConnect 4096 host port >-> PB.toHandle h
+  recoverAll retryStrategy $ \status -> do
+    System.IO.hPutStrLn stderr $ host <> " :: Attempt number " <> (show (status ^. rsIterNumberL))
+    runSafeT . runEffect $ fromConnect 4096 host port >-> PB.toHandle h
 
 streamFromInstancesToFiles :: [Host'] -> Port' -> IO ()
 streamFromInstancesToFiles hosts port = void $ mapConcurrently (streamFromSocket port) hosts
@@ -64,11 +68,5 @@ streamFromInstances = do
       port :: Port'
       port = show port'
 
-      -- I could probably set this up with a config option
-      -- retryStrategy = exponentialBackoff (10 * 1000000) <> limitRetries 5
-      retryStrategy = constantDelay (10 * 1000000) <> limitRetries 5
-
   INFO("Attempting to stream responses")
-  liftIO $ recoverAll retryStrategy $ \status -> do
-    System.IO.hPutStrLn stderr $ "Attempt number " <> (show (status ^. rsIterNumberL))
-    streamFromInstancesToFiles ips port
+  liftIO $ streamFromInstancesToFiles ips port

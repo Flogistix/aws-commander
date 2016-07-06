@@ -51,10 +51,11 @@ import Debug.Trace
 userDataScript :: Int -> Text
 userDataScript port = Text.decodeUtf8 . B64.encode . Text.encodeUtf8 $ script
   where 
-    script = "#!/bin/bash \n apt-get install -y netcat-traditional && echo \"Starting netcat...\" && nc.traditional -l -p " <> (Text.pack $ show port) <> " -c \"while(true); do /bin/date; done;\" &"
+    script = "#!/bin/bash \n apt-get install -y netcat-traditional && echo \"Starting netcat...\" && nc.traditional -l -p " <> (Text.pack $ show port) <> " -c \"/bin/date\" &"
 
 
--- Probably need to do this a different way since I keep exhausting elastic IPs
+-- This is currently not in use but I'm going to leave it since it worked well when I needed it.
+-- I'm now assigning public addresses via NetworkInterfaceSpecification
 -- https://hackage.haskell.org/package/amazonka-ec2-1.3.6/docs/Network-AWS-EC2-Types.html#v:inisAssociatePublicIPAddress
 assignPublicAddress :: (MonadAWS m, MonadThrow m, MonadState AppState m, KatipContext m) => Instance -> m ()
 assignPublicAddress i = do
