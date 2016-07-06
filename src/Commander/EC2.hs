@@ -186,7 +186,11 @@ createTagsOnInstances uid = do
 
 
 -- | Create instances to run jobs on
-createInstances :: (MonadAWS m, MonadIO m, MonadReader AppConfig m, MonadState AppState m, KatipContext m) => m ()
+createInstances :: ( MonadAWS m
+                   , MonadIO m
+                   , MonadReader AppConfig m
+                   , MonadState AppState m
+                   , KatipContext m) => m ()
 createInstances = do
   uuid    <- use sessionId
   sgId    <- getCommanderSecurityGroupId
