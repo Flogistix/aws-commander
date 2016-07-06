@@ -5,4 +5,5 @@ import Commander
 
 main :: IO ()
 main = do
-  someFunc
+  let scriptDir = "scripts"
+  runCommanderWithScriptDirectory scriptDir

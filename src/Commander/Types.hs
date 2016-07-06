@@ -30,7 +30,8 @@ import Network.AWS.EC2
 import Data.Text (Text)
 import qualified Data.Text as Text
 
-type SessionID = Text
+type SessionID  = Text
+type ScriptName = String
 
 data ConfigError = NoConfigurationFilesFoundError
                  | ConfigurationCouldNotParseError Text
@@ -46,7 +47,8 @@ instance Exception CommanderError
 
 
 data ConfigFile = ConfigFile { _awsRegion           :: Text
-                             , _numberOfInstances   :: Int
+                             , _awsBucket           :: Text
+                             , _maxInstances        :: Int
                              , _waitToRunningSec    :: Int
                              , _keyPairName         :: Text
                              , _amiIdentifier       :: Text
@@ -70,6 +72,7 @@ data AppState = AppState { _ec2Instances   :: [Instance]
                          , _katipLogEnv    :: LogEnv
                          , _katipNamespace :: Namespace
                          , _elasticIPs     :: [Text]
+                         , _scriptsToRun   :: [Text]
                          }
 makeLenses ''AppState
 

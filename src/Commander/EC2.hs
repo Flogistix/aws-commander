@@ -48,10 +48,18 @@ import qualified Data.ByteString.Base64 as B64
 import Debug.Trace
   
 
-userDataScript :: Int -> Text
-userDataScript port = Text.decodeUtf8 . B64.encode . Text.encodeUtf8 $ script
+userDataScript :: Int -> Text -> Text -> Text -> Text
+userDataScript port region bucket s3Key = Text.decodeUtf8 . B64.encode . Text.encodeUtf8 $ script
   where 
-    script = "#!/bin/bash \n apt-get install -y netcat-traditional && echo \"Starting netcat...\" && nc.traditional -l -p " <> (Text.pack $ show port) <> " -c \"/bin/date\" &"
+    script = "#!/bin/bash \n" 
+             <> "apt-get update \\\n"
+             <> "  && apt-get install -y awscli netcat-traditional \\\n"
+             <> "  && aws --region=" <> region <> " s3 cp s3://" <> bucket <> "/" <> s3Key <> " runMe \\\n"
+             <> "  && chmod +x runMe \\\n"
+             <> "  && echo \"Starting netcat...\" \\\n" 
+             <> "  && nc.traditional -l -p " 
+             <> (Text.pack $ show port) 
+             <> " -c \"sh ./runMe\" &"
 
 
 -- This is currently not in use but I'm going to leave it since it worked well when I needed it.
@@ -163,7 +171,7 @@ waitUntilInstancesAreRunning = do
 waitUntilInstancesAreTerminated :: (MonadAWS m, MonadReader AppConfig m, MonadState AppState m, KatipContext m) => m ()
 waitUntilInstancesAreTerminated = do
   allTerminated <- allInstancesAreTerminated
-  secs <- view $ configFile . waitToRunningSec
+  secs          <- view $ configFile . waitToRunningSec
 
   if allTerminated 
   then return ()
@@ -185,13 +193,28 @@ createTagsOnInstances uid = do
                         & cTags      <>~ [instanceName]
 
 
+{-
+ -- This is for making sure the generated userData looks formatted correctly
+printUserData :: (MonadIO m, MonadReader AppConfig m, MonadState AppState m) => Text -> m ()
+printUserData key = do
+  bucket  <- view $ configFile . awsBucket
+  port    <- view $ configFile . awsSGPort
+  let script = userDataScript port bucket key
+  void . liftIO . putDecoded . B64.decode . Text.encodeUtf8 $ script
+
+  where
+    putDecoded (Right bs) = Text.putStrLn . Text.decodeUtf8 $ bs
+    putDecoded _          = return ()
+-}
+
+
 -- | Create instances to run jobs on
-createInstances :: ( MonadAWS m
-                   , MonadIO m
-                   , MonadReader AppConfig m
-                   , MonadState AppState m
-                   , KatipContext m) => m ()
-createInstances = do
+runInstanceWithScript :: ( MonadAWS m
+                         , MonadIO m
+                         , MonadReader AppConfig m
+                         , MonadState AppState m
+                         , KatipContext m) => Text -> Text -> m ()
+runInstanceWithScript scriptName scriptS3Key = do
   uuid    <- use sessionId
   sgId    <- getCommanderSecurityGroupId
   ami     <- view $ configFile . amiIdentifier
@@ -199,11 +222,12 @@ createInstances = do
   role    <- view $ configFile . iamRole
   keyName <- view $ configFile . keyPairName
   port    <- view $ configFile . awsSGPort
-  num     <- view $ configFile . numberOfInstances
   public  <- view $ configFile . awsUsePublicIP
+  bucket  <- view $ configFile . awsBucket
+  region  <- view $ configFile . awsRegion
 
   let iamr    = iamInstanceProfileSpecification & iapsName ?~ role
-      request = runInstances ami num num
+      request = runInstances ami 1 1
       spec    = instanceNetworkInterfaceSpecification & inisAssociatePublicIPAddress ?~ public
                                                       & inisSubnetId                 ?~ snetId
                                                       & inisGroups                  <>~ [ sgId ]
@@ -213,16 +237,10 @@ createInstances = do
   reservation <- send $ request & rNetworkInterfaces <>~ spec:[]
                                 & rKeyName            ?~ keyName
                                 & rIAMInstanceProfile ?~ iamr
-                                & rUserData           ?~ userDataScript port
+                                & rUserData           ?~ userDataScript port region bucket scriptS3Key
 
   INFO("Instances are starting up")
-  ec2Instances .= reservation ^. rInstances 
-  waitUntilInstancesAreRunning
-
-  
-  INFO("Assigning Instances Name Tags")
-  createTagsOnInstances uuid
-  updateInstanceState
+  ec2Instances <>= reservation ^. rInstances 
 
 
 

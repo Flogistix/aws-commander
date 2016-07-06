@@ -54,7 +54,8 @@ buildConfigFromPaths fp = convertErrors <$> runErrorT tryParsing
     tryParsing = do
       cp  <- foldlM (readInConfig) emptyCP fp
       ConfigFile <$> get cp "DEFAULT" "aws_region"
-                 <*> get cp "DEFAULT" "number_of_instances"
+                 <*> get cp "DEFAULT" "aws_bucket"
+                 <*> get cp "DEFAULT" "max_instances"
                  <*> get cp "DEFAULT" "wait_to_running_sec"
                  <*> get cp "DEFAULT" "key_pair_name"
                  <*> get cp "DEFAULT" "ami"
