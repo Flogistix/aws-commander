@@ -35,6 +35,7 @@ import System.IO
 
 import Network.AWS
 import Network.AWS.EC2
+import Network.AWS.Data.Text
 
 import Katip
 
@@ -224,10 +225,12 @@ runInstanceWithScript scriptName scriptS3Key = do
   port    <- view $ configFile . awsSGPort
   public  <- view $ configFile . awsUsePublicIP
   bucket  <- view $ configFile . awsBucket
+  itypeT  <- view $ configFile . instanceType
   region  <- view $ configFile . awsRegion
 
   let iamr    = iamInstanceProfileSpecification & iapsName ?~ role
       request = runInstances ami 1 1
+      insType = either (const T1_Micro) id (fromText itypeT)
       spec    = instanceNetworkInterfaceSpecification & inisAssociatePublicIPAddress ?~ public
                                                       & inisSubnetId                 ?~ snetId
                                                       & inisGroups                  <>~ [ sgId ]
@@ -237,6 +240,7 @@ runInstanceWithScript scriptName scriptS3Key = do
   reservation <- send $ request & rNetworkInterfaces <>~ spec:[]
                                 & rKeyName            ?~ keyName
                                 & rIAMInstanceProfile ?~ iamr
+                                & rInstanceType       ?~ insType
                                 & rUserData           ?~ userDataScript port region bucket scriptS3Key
 
   INFO("Instances are starting up")
