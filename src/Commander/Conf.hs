@@ -84,3 +84,6 @@ getConfigOrExit path = either (exit) return =<< loadConfig path
     exit (ConfigurationCouldNotParseError str) = do
       Text.hPutStrLn stderr str
       exitWith (ExitFailure 1)
+    exit (NoConfigurationFilesFoundError) = do
+      Text.hPutStrLn stderr "Couldn't find a configuration file"
+      exitWith (ExitFailure 2)
