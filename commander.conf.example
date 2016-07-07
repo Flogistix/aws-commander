@@ -1,25 +1,24 @@
 [DEFAULT]
 aws_region: "us-west-2"
+aws_bucket: "bucket-commander-has-access-to-goes-here"
 
-number_of_instances: 2
+max_instances: 5
 
 key_pair_name: "commander"
 
 ami: "ami-9dbea4fc"
 
-#Don't have a reason to use the vpc id yet...
-#vpc: "vpc-8ec3b0eb"
-
-subnet: "subnet-b797f7c0"
+subnet: "subnet-b799f7c1"
 sg_port: 16855
 sg_cidr: "0.0.0.0/0"
 
+# If you use false you must already have a means of communicating directly to the private IPs
 use_public_ip: true
 
 #instance names must be lowercase 
 instance_type: "t1.micro"
 
-iam_role: "S3Read"
+iam_role: "commander"
 
 # seconds to wait until running
 wait_to_running_sec: 30
