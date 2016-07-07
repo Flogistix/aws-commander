@@ -60,11 +60,11 @@ getRegionOrExit c =
     Left _       -> exitFailure
 
 
-runCommanderWithScriptDirectory :: FilePath -> IO ()
-runCommanderWithScriptDirectory scriptDir = void $ do
+runCommanderWithScriptDirectory :: FilePath -> Maybe FilePath -> IO ()
+runCommanderWithScriptDirectory scriptDir maybeConfig = void $ do
   -- Get default config environment unless specified otherwise by command line args
   -- Need to add cmdline switch for non-default configs
-  confFile <- getConfigOrExit
+  confFile <- getConfigOrExit maybeConfig
   scribe   <- mkHandleScribe ColorIfTerminal stdout InfoS V3
   le       <- registerScribe "stdout" scribe <$> initLogEnv namespace developmentEnv
   region   <- getRegionOrExit confFile

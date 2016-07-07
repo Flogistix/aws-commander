@@ -52,7 +52,7 @@ buildConfigFromPaths fp = convertErrors <$> runErrorT tryParsing
     convertErrors :: Either CPError ConfigFile -> Either ConfigError ConfigFile
     convertErrors = either (Left . convertCPErrors) (Right)
     tryParsing = do
-      cp  <- foldlM (readInConfig) emptyCP fp
+      cp  <- foldlM (readInConfig) emptyCP $ take 1 fp
       ConfigFile <$> get cp "DEFAULT" "aws_region"
                  <*> get cp "DEFAULT" "aws_bucket"
                  <*> get cp "DEFAULT" "max_instances"
@@ -66,14 +66,19 @@ buildConfigFromPaths fp = convertErrors <$> runErrorT tryParsing
                  <*> get cp "DEFAULT" "instance_type"
                  <*> get cp "DEFAULT" "iam_role"
 
-loadConfig :: (MonadIO m) => m (Either ConfigError ConfigFile)
-loadConfig = do
-  homeConf <- liftIO $ (++ "/.commander.conf") <$> getUserDocumentsDirectory
-  paths    <- liftIO $ filterM doesFileExist $ homeConf : configPaths 
-  buildConfigFromPaths paths
+loadConfig :: (MonadIO m) => Maybe FilePath -> m (Either ConfigError ConfigFile)
+loadConfig p = do
+  case p of
+    Nothing   -> do
+      homeConf <- liftIO $ (++ "/.commander.conf") <$> getUserDocumentsDirectory
+      paths    <- liftIO $ filterM doesFileExist $ homeConf : configPaths 
+      buildConfigFromPaths paths
+    Just path -> do
+      homeConf <- liftIO $ (++ "/.commander.conf") <$> getUserDocumentsDirectory
+      paths    <- liftIO $ filterM doesFileExist [path]
+      buildConfigFromPaths paths
 
-getConfigOrExit :: IO ConfigFile
-getConfigOrExit = either (exit) return =<< loadConfig 
+getConfigOrExit path = either (exit) return =<< loadConfig path
   where
     exit :: ConfigError -> IO ConfigFile
     exit (ConfigurationCouldNotParseError str) = do

@@ -39,7 +39,7 @@ main = do
   opts <- foldl (>>=) (return $ Flags Nothing Nothing) actions
 
   case scriptDir opts of
-    Nothing -> runCommanderWithScriptDirectory "scripts"
-    Just x  -> runCommanderWithScriptDirectory x
+    Nothing -> runCommanderWithScriptDirectory "scripts" (configFile opts)
+    Just x  -> runCommanderWithScriptDirectory x         (configFile opts)
 
 
