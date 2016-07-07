@@ -41,5 +41,3 @@ main = do
   case scriptDir opts of
     Nothing -> runCommanderWithScriptDirectory "scripts" (configFile opts)
     Just x  -> runCommanderWithScriptDirectory x         (configFile opts)
-
-

@@ -66,17 +66,23 @@ buildConfigFromPaths fp = convertErrors <$> runErrorT tryParsing
                  <*> get cp "DEFAULT" "instance_type"
                  <*> get cp "DEFAULT" "iam_role"
 
+
+
 loadConfig :: (MonadIO m) => Maybe FilePath -> m (Either ConfigError ConfigFile)
 loadConfig p = do
   case p of
+
     Nothing   -> do
       homeConf <- liftIO $ (++ "/.commander.conf") <$> getUserDocumentsDirectory
       paths    <- liftIO $ filterM doesFileExist $ homeConf : configPaths 
       buildConfigFromPaths paths
+
     Just path -> do
-      homeConf <- liftIO $ (++ "/.commander.conf") <$> getUserDocumentsDirectory
+      liftIO $ putStrLn $ "Trying to use " ++ path
       paths    <- liftIO $ filterM doesFileExist [path]
       buildConfigFromPaths paths
+
+
 
 getConfigOrExit path = either (exit) return =<< loadConfig path
   where
