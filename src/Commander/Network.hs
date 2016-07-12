@@ -11,6 +11,7 @@
 module Commander.Network where
 
 import Control.Concurrent.Async
+import Control.Concurrent.STM.TQueue
 import Control.Retry
 
 import Data.ByteString
@@ -18,6 +19,7 @@ import Data.Maybe
 import Data.Monoid
 
 import Control.Lens 
+import Control.Monad.STM
 import Control.Monad.Except
 import Control.Monad.Reader
 import Control.Monad.State
@@ -45,17 +47,26 @@ import GHC.IO.Exception
 type Host' = String
 type Port' = String
 
-streamFromSocket :: Port' -> Host' -> IO ()
-streamFromSocket port host = do
+
+
+streamFromSocket :: TQueue (IO ()) -> Port' -> Host' -> IO ()
+streamFromSocket q port host = do
   let retryStrategy = exponentialBackoff (10 * 1000000) <> limitRetries 5
 
   h <- openFile (host <> ".log") WriteMode
   recoverAll retryStrategy $ \status -> do
-    System.IO.hPutStrLn stderr $ host <> " :: Attempt number " <> (show (status ^. rsIterNumberL))
+    atomically $ writeTQueue q $
+      System.IO.hPutStrLn stderr $ host <> " :: Attempt number " <> (show (status ^. rsIterNumberL))
     runSafeT . runEffect $ fromConnect 4096 host port >-> PB.toHandle h
 
+
+
 streamFromInstancesToFiles :: [Host'] -> Port' -> IO ()
-streamFromInstancesToFiles hosts port = void $ mapConcurrently (streamFromSocket port) hosts
+streamFromInstancesToFiles hosts port = void $ do
+  q <- newTQueueIO
+  mapConcurrently (streamFromSocket q port) hosts
+
+
 
 streamFromInstances :: (MonadState AppState m, MonadReader AppConfig m, MonadIO m, KatipContext m) => m ()
 streamFromInstances = do

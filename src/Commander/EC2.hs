@@ -60,7 +60,7 @@ userDataScript port region bucket s3Key = Text.decodeUtf8 . B64.encode . Text.en
              <> "  && echo \"Starting netcat...\" \\\n" 
              <> "  && nc.traditional -l -p " 
              <> (Text.pack $ show port) 
-             <> " -c \"./runMe 2>&1\" &"
+             <> " -c \"./runMe \" &"
 
 
 -- This is currently not in use but I'm going to leave it since it worked well when I needed it.
@@ -84,8 +84,11 @@ assignPublicAddress i = do
 
 
 
-assignPublicIPAddressesIfNecessary :: ( MonadAWS m, MonadThrow m, MonadState AppState m
-                                      , MonadReader AppConfig m, KatipContext m) => m ()
+assignPublicIPAddressesIfNecessary :: ( MonadAWS m
+                                      , MonadThrow m
+                                      , MonadState AppState m
+                                      , MonadReader AppConfig m
+                                      , KatipContext m ) => m ()
 assignPublicIPAddressesIfNecessary = do  
   isUsingPublicIps <- view $ configFile . awsUsePublicIP
   case isUsingPublicIps of
@@ -153,7 +156,10 @@ updateInstanceState = do
 
 
 
-waitUntilInstancesAreRunning :: (MonadAWS m, MonadReader AppConfig m, MonadState AppState m, KatipContext m) => m ()
+waitUntilInstancesAreRunning :: ( MonadAWS m
+                                , MonadReader AppConfig m
+                                , MonadState AppState m
+                                , KatipContext m ) => m ()
 waitUntilInstancesAreRunning = do
   allRunning <- allInstancesAreReady
   secs <- view $ configFile . waitToRunningSec
@@ -169,7 +175,10 @@ waitUntilInstancesAreRunning = do
 
 
 
-waitUntilInstancesAreTerminated :: (MonadAWS m, MonadReader AppConfig m, MonadState AppState m, KatipContext m) => m ()
+waitUntilInstancesAreTerminated :: ( MonadAWS m
+                                   , MonadReader AppConfig m
+                                   , MonadState AppState m
+                                   , KatipContext m ) => m ()
 waitUntilInstancesAreTerminated = do
   allTerminated <- allInstancesAreTerminated
   secs          <- view $ configFile . waitToRunningSec
@@ -214,7 +223,7 @@ runInstanceWithScript :: ( MonadAWS m
                          , MonadIO m
                          , MonadReader AppConfig m
                          , MonadState AppState m
-                         , KatipContext m) => Text -> Text -> m ()
+                         , KatipContext m ) => Text -> Text -> m ()
 runInstanceWithScript scriptName scriptS3Key = do
   uuid    <- use sessionId
   sgId    <- getCommanderSecurityGroupId
@@ -236,14 +245,14 @@ runInstanceWithScript scriptName scriptS3Key = do
                                                       & inisGroups                  <>~ [ sgId ]
                                                       & inisDeviceIndex              ?~ 0
 
-  INFO("Attempting to spin up instances")
+  INFO("Attempting to spin up instance")
   reservation <- send $ request & rNetworkInterfaces <>~ spec:[]
                                 & rKeyName            ?~ keyName
                                 & rIAMInstanceProfile ?~ iamr
                                 & rInstanceType       ?~ insType
                                 & rUserData           ?~ userDataScript port region bucket scriptS3Key
 
-  INFO("Instances are starting up")
+  INFO("Instance is starting up")
   ec2Instances <>= reservation ^. rInstances 
 
 
@@ -252,7 +261,7 @@ terminateInstancesInStateAndCleanUpElasticIPs :: ( MonadAWS m
                                                  , MonadIO m
                                                  , MonadState AppState m
                                                  , MonadReader AppConfig m
-                                                 , KatipContext m) => m ()
+                                                 , KatipContext m ) => m ()
 terminateInstancesInStateAndCleanUpElasticIPs = do
   INFO("Terminating Instances")
   instanceIds <- getInstanceIdsInState
