@@ -60,7 +60,7 @@ userDataScript port region bucket s3Key = Text.decodeUtf8 . B64.encode . Text.en
              <> "  && echo \"Starting netcat...\" \\\n" 
              <> "  && nc.traditional -l -p " 
              <> (Text.pack $ show port) 
-             <> " -c \"./runMe\" &"
+             <> " -c \"./runMe 2>&1\" &"
 
 
 -- This is currently not in use but I'm going to leave it since it worked well when I needed it.
